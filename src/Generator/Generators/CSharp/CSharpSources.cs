@@ -3102,7 +3102,7 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
                             Helpers.ReturnIdentifier);
                     }
                     else
-                        WriteLine("var {0} = {1};", construct);
+                        WriteLine("var {0} = {1};", Helpers.ReturnIdentifier, construct);
                 }
             }
 
