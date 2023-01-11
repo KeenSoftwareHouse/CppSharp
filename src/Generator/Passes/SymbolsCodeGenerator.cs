@@ -141,7 +141,7 @@ namespace CppSharp.Passes
 
         private void WrapConstructor(Method method, string wrapper, string @params)
         {
-            if (Options.CheckSymbols)
+            if (method.IsInline)
             {
                 method.Mangled = wrapper;
                 method.CallingConvention = CallingConvention.C;
@@ -190,7 +190,7 @@ namespace CppSharp.Passes
 
         private void WrapDestructor(Method method, string wrapper)
         {
-            if (Options.CheckSymbols)
+            if (method.IsInline)
             {
                 method.Mangled = wrapper;
                 method.CallingConvention = CallingConvention.C;
