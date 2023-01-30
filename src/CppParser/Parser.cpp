@@ -54,6 +54,7 @@
 #include <CodeGen/CGCXXABI.h>
 #include <Driver/ToolChains/Linux.h>
 #include <Driver/ToolChains/MSVC.h>
+#include <iostream>
 
 #if defined(__APPLE__) || defined(__linux__)
 #ifndef _GNU_SOURCE
@@ -610,6 +611,25 @@ static AccessSpecifier ConvertToAccess(clang::AccessSpecifier AS)
     llvm_unreachable("Unknown AccessSpecifier");
 }
 
+static TagKind ConvertToTagKind(clang::TagTypeKind AS)
+{
+    switch (AS)
+    {
+    case clang::TagTypeKind::TTK_Struct:
+        return TagKind::Struct;
+    case clang::TagTypeKind::TTK_Interface:
+        return TagKind::Interface;
+    case clang::TagTypeKind::TTK_Union:
+        return TagKind::Union;
+    case clang::TagTypeKind::TTK_Class:
+        return TagKind::Class;
+    case clang::TagTypeKind::TTK_Enum:
+        return TagKind::Enum;
+    }
+
+    llvm_unreachable("Unknown TagKind");
+}
+
 VTableComponent
 Parser::WalkVTableComponent(const clang::VTableComponent& Component)
 {
@@ -791,6 +811,7 @@ Class* Parser::GetRecord(const clang::RecordDecl* Record, bool& Process)
     RC = NS->FindClass(opts->unityBuild ? Record : 0, Name,
         isCompleteDefinition, /*Create=*/true);
     RC->isInjected = Record->isInjectedClassName();
+    RC->tagKind = ConvertToTagKind(Record->getTagKind());
     HandleDeclaration(Record, RC);
     EnsureCompleteRecord(Record, NS, RC);
 
@@ -942,25 +963,6 @@ static RecordArgABI GetRecordArgABI(
     default:
         return RecordArgABI::Default;
     }
-}
-
-static TagKind ConvertToTagKind(clang::TagTypeKind AS)
-{
-    switch (AS)
-    {
-    case clang::TagTypeKind::TTK_Struct:
-        return TagKind::Struct;
-    case clang::TagTypeKind::TTK_Interface:
-        return TagKind::Interface;
-    case clang::TagTypeKind::TTK_Union:
-        return TagKind::Union;
-    case clang::TagTypeKind::TTK_Class:
-        return TagKind::Class;
-    case clang::TagTypeKind::TTK_Enum:
-        return TagKind::Enum;
-    }
-
-    llvm_unreachable("Unknown TagKind");
 }
 
 void Parser::WalkRecord(const clang::RecordDecl* Record, Class* RC)
