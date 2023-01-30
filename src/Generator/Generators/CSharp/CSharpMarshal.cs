@@ -399,9 +399,13 @@ namespace CppSharp.Generators.CSharp
             }
             else
             {
-                Context.Before.WriteLine("var {0} = {1} != IntPtr.Zero ? {2}.{3}({4}) : default;",
-                    ret, Context.ReturnVarName, qualifiedClass, Helpers.CreateInstanceIdentifier, Context.ReturnVarName);
+                if (Context.Context.Options.PreservePointers)
+                    Context.Before.WriteLine("var {0} = ({1}*){2};", ret, qualifiedClass, Context.ReturnVarName);
+                else
+                    Context.Before.WriteLine("var {0} = {1} != IntPtr.Zero ? {2}.{3} ({4}) : default;", 
+                        ret, Context.ReturnVarName, qualifiedClass, Helpers.CreateInstanceIdentifier, Context.ReturnVarName);
             }
+
             return ret;
         }
 
@@ -626,24 +630,36 @@ namespace CppSharp.Generators.CSharp
                 return true;
             }
 
-
             string arg = Generator.GeneratedIdentifier(Context.ArgName);
 
             if (pointee.TryGetClass(out Class @class) && @class.IsValueType)
             {
                 if (Context.Parameter.Usage == ParameterUsage.Out)
                 {
-                    var qualifiedIdentifier = (@class.OriginalClass ?? @class).Visit(typePrinter);
-                    Context.Before.WriteLine("var {0} = new {1}.{2}();",
-                        arg, qualifiedIdentifier, Helpers.InternalStruct);
+                    Context.Before.WriteLine("fixed({0} {1} = &{2})",
+                        Context.Parameter.Type, arg, Context.Parameter.Name);
+
+                    Context.HasCodeBlock = true;
+
+                    Context.Before.WriteOpenBraceAndIndent();
+
+                    Context.Return.Write($"new {typePrinter.IntPtrType}(&{arg})");
+                }
+                else if (Context.Context.Options.PreservePointers)
+                {
+                    Context.Before.WriteLine("var {0} = ({1}.__Internal*){2};",
+                        arg, pointee, Context.Parameter.Name);
+                    
+                    Context.Return.Write($"new {typePrinter.IntPtrType}({arg})");
                 }
                 else
                 {
                     Context.Before.WriteLine("var {0} = {1}.{2};",
                         arg, Context.Parameter.Name, Helpers.InstanceIdentifier);
+                 
+                    Context.Return.Write($"new {typePrinter.IntPtrType}(&{arg})");
                 }
-
-                Context.Return.Write($"new {typePrinter.IntPtrType}(&{arg})");
+                
                 return true;
             }
 

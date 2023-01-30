@@ -397,7 +397,7 @@ namespace CppSharp.Passes
 
         private CppTypePrinter cppTypePrinter;
 
-        private int functionCount;
+        private static int functionCount;
         private HashSet<Method> implementedDtors = new HashSet<Method>();
     }
 }

@@ -247,6 +247,10 @@ namespace CppSharp
         /// </summary>
         public bool GenerateExternalDataFields { get; set; } = false;
 
+        /// <summary>
+        /// Whether to preserve pointers as they were declared in C++ code.
+        /// </summary>
+        public bool PreservePointers { get; set; } = false;
         #endregion
     }
 

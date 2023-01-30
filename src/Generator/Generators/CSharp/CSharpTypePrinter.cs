@@ -225,6 +225,7 @@ namespace CppSharp.Generators.CSharp
                 allowStrings = true;
 
                 string @ref = Parameter != null && Parameter.IsIndirect ? string.Empty : "*";
+
                 return result + @ref;
             }
 
@@ -234,7 +235,24 @@ namespace CppSharp.Generators.CSharp
                 return IntPtrType;
             }
 
-            return pointer.QualifiedPointee.Visit(this);
+            if (Context.TypeMaps.FindTypeMap(pointer.Desugar(), out var map))
+            {
+                var typePrinterContext = new TypePrinterContext
+                {
+                    Kind = ContextKind,
+                    MarshalKind = MarshalKind,
+                    Type = pointer
+                };
+
+                return map.CSharpSignatureType(typePrinterContext).ToString();
+            }
+
+            bool isRefType = pointer.Pointee.TryGetClass(out var @class) &&
+                             @class.Type is ClassType.RefType or ClassType.Interface;
+
+            string ptr = Context.Options.PreservePointers && !isRefType ? "*" : string.Empty;
+
+            return pointer.QualifiedPointee.Visit(this) + ptr;
         }
 
         public override TypePrinterResult VisitMemberPointerType(MemberPointerType member,
@@ -601,6 +619,11 @@ $"[{Context.TargetInfo.LongDoubleWidth}]");
 
         public override TypePrinterResult VisitParameter(Parameter param, bool hasName)
         {
+            bool preservePointers = Context.Options.PreservePointers;
+
+            if (param.IsOut)
+                Context.Options.PreservePointers = false;
+
             var typeBuilder = new StringBuilder();
             if (param.Type.Desugar().IsPrimitiveType(PrimitiveType.Bool)
                 && MarshalKind == MarshalKind.GenericDelegate)
@@ -610,15 +633,22 @@ $"[{Context.TargetInfo.LongDoubleWidth}]");
             var type = typeBuilder.ToString();
 
             if (ContextKind == TypePrinterContextKind.Native)
+            {
+                Context.Options.PreservePointers = preservePointers;
                 return $"{type} {param.Name}";
+            }
 
             var extension = param.Kind == ParameterKind.Extension ? "this " : string.Empty;
             var usage = GetParameterUsage(param.Usage);
 
             if (param.DefaultArgument == null || !Options.GenerateDefaultValuesForArguments)
+            {
+                Context.Options.PreservePointers = preservePointers;
                 return $"{extension}{usage}{type} {param.Name}";
+            }
 
             var defaultValue = expressionPrinter.VisitParameter(param);
+            Context.Options.PreservePointers = preservePointers;
             return $"{extension}{usage}{type} {param.Name} = {defaultValue}";
         }
 

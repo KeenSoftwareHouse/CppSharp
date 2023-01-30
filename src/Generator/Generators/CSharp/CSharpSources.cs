@@ -2589,6 +2589,11 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
         public override void GenerateMethodSpecifier(Method method,
             MethodSpecifierKind? kind = null)
         {
+            bool preservePointers = Context.Options.PreservePointers;
+
+            if (method.IsOperator)
+                Context.Options.PreservePointers = false;
+
             bool isTemplateMethod = method.Parameters.Any(
                 p => p.Kind == ParameterKind.Extension);
             if (method.IsVirtual && !method.IsGeneratedOverride() &&
@@ -2606,7 +2611,7 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
 
             if (method.IsPure)
                 Write("abstract ");
-
+            
             var functionName = GetMethodIdentifier(method);
             var printedType = method.OriginalReturnType.Visit(TypePrinter);
             var parameters = FormatMethodParameters(method.Parameters);
@@ -2619,6 +2624,8 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
                 Write($"{functionName} {printedType}({parameters})");
             else
                 Write($"{printedType} {functionName}({parameters})", printedType);
+
+            Context.Options.PreservePointers = preservePointers;
         }
 
         public void GenerateMethod(Method method, Class @class)
@@ -2681,8 +2688,6 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
             }
             else
             {
-                var isVoid = method.OriginalReturnType.Type.Desugar().IsPrimitiveType(PrimitiveType.Void) ||
-                    method.IsConstructor;
                 this.GenerateMember(@class, c => GenerateMethodBody(
                     c, method, method.OriginalReturnType));
             }
@@ -2932,10 +2937,19 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
                     if (@interface != null)
                     {
                         var printedInterface = @interface.Visit(TypePrinter);
-                        WriteLine($"return new {printedType}(({printedInterface}) {paramName});");
+
+                        if (@interface.IsValueType && Context.Options.PreservePointers)
+                            WriteLine($"return new {printedType}(({printedInterface})(&{paramName}));");
+                        else
+                            WriteLine($"return new {printedType}(({printedInterface}) {paramName});");
                     }
                     else
-                        WriteLine($"return new {printedType}({paramName});");
+                    {
+                        if (Context.Options.PreservePointers)
+                            WriteLine($"return new {printedType}(&{paramName});");
+                        else
+                            WriteLine($"return new {printedType}({paramName});");
+                    }
                 }
                 else
                 {
@@ -2946,6 +2960,9 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
                 }
                 return;
             }
+
+            bool preservePointers = Context.Options.PreservePointers;
+            Context.Options.PreservePointers = false;
 
             if (method.OperatorKind == CXXOperatorKind.EqualEqual ||
                 method.OperatorKind == CXXOperatorKind.ExclaimEqual)
@@ -2963,6 +2980,8 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
             }
 
             GenerateInternalFunctionCall(method, returnType: returnType);
+
+            Context.Options.PreservePointers = preservePointers;
         }
 
         private void GenerateClassConstructor(Method method, Class @class)
@@ -3307,7 +3326,9 @@ internal static{(@new ? " new" : string.Empty)} {printedClass} __GetInstance({Ty
                 if ((paramType.GetFinalPointee() ?? paramType).Desugar().TryGetClass(out @class))
                 {
                     var qualifiedIdentifier = (@class.OriginalClass ?? @class).Visit(TypePrinter);
-                    WriteLine("{0} = new {1}();", name, qualifiedIdentifier);
+                    
+                    if (!Context.Options.PreservePointers || (!paramType.IsPointer() && !paramType.IsReference()))
+                        WriteLine("{0} = new {1}();", name, qualifiedIdentifier);
                 }
             }
 
