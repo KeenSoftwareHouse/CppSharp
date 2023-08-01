@@ -358,12 +358,12 @@ void Parser::Setup(bool Compile)
     clang::driver::Driver D("", TO->Triple, c->getDiagnostics());
     clang::driver::ToolChain *TC = nullptr;
     llvm::Triple Target(TO->Triple);
-
+    
     if (Target.getOS() == llvm::Triple::Linux)
         TC = new clang::driver::toolchains::Linux(D, Target, Args);
     else if (Target.getEnvironment() == llvm::Triple::EnvironmentType::MSVC)
         TC = new clang::driver::toolchains::MSVCToolChain(D, Target, Args);
-
+    
     if (TC && !opts->noStandardIncludes) {
         llvm::opt::ArgStringList Includes;
         TC->AddClangSystemIncludeArgs(Args, Includes);
@@ -3488,7 +3488,8 @@ void Parser::WalkVariable(const clang::VarDecl* VD, Variable* Var)
     Var->access = ConvertToAccess(VD->getAccess());
 
     auto Init = VD->getAnyInitializer();
-    Var->initializer = (Init && !Init->getType()->isDependentType()) ?
+    
+    Var->initializer = (Init && !Init->getType().isNull() && !Init->getType()->isDependentType()) ?
         WalkVariableInitializerExpression(Init) : nullptr;
 
     auto TL = VD->getTypeSourceInfo()->getTypeLoc();
@@ -4370,7 +4371,7 @@ void Parser::SetupLLVMCodegen()
     LLVMModule->setTargetTriple(c->getTarget().getTriple().getTriple());
     LLVMModule->setDataLayout(c->getTarget().getDataLayoutString());
 
-    CGM.reset(new clang::CodeGen::CodeGenModule(c->getASTContext(),
+    CGM.reset(new clang::CodeGen::CodeGenModule(c->getASTContext(), nullptr,
         c->getHeaderSearchOpts(), c->getPreprocessorOpts(),
         c->getCodeGenOpts(), *LLVMModule, c->getDiagnostics()));
 
@@ -4381,7 +4382,7 @@ bool Parser::SetupSourceFiles(const std::vector<std::string>& SourceFiles,
     std::vector<const clang::FileEntry*>& FileEntries)
 {
     // Check that the file is reachable.
-    const clang::DirectoryLookup *Dir;
+    clang::ConstSearchDirIterator *Dir = nullptr;
     llvm::SmallVector<
         std::pair<const clang::FileEntry *, const clang::DirectoryEntry *>,
         0> Includers;
